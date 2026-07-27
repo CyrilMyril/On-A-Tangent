@@ -176,6 +176,139 @@ const TOPICS = [
 const CATEGORIES = [...new Set(TOPICS.map((x) => x.c))];
 
 /* ---------------------------------------------------------------
+   ATLAS (WIKIPEDIA) INTEGRATION
+   Uses Wikipedia's public REST + Action APIs directly from the
+   browser. No key needed, CORS-enabled, works from any host.
+--------------------------------------------------------------- */
+const WIKI_REST = "https://en.wikipedia.org/api/rest_v1";
+const WIKI_ACTION = "https://en.wikipedia.org/w/api.php";
+
+// Maps our own category labels to real Wikipedia category names
+const CATEGORY_WIKI_MAP = {
+  "Science": ["Science"],
+  "Psychology": ["Psychology"],
+  "History": ["History"],
+  "Philosophy": ["Philosophy"],
+  "Space": ["Astronomy", "Space exploration"],
+  "Technology": ["Technology"],
+  "Nature": ["Nature", "Ecology"],
+  "Mathematics": ["Mathematics"],
+  "Economics": ["Economics"],
+  "Culture & Arts": ["The arts", "Culture"],
+  "Mythology & Folklore": ["Mythology", "Folklore"],
+  "Sports": ["Sports"],
+  "Linguistics": ["Linguistics"],
+  "Design & Architecture": ["Architecture", "Design"],
+};
+
+const DIFFICULTIES = [
+  { id: "surface", label: "Surface", hint: "Quick, approachable topics" },
+  { id: "current", label: "Current", hint: "Solid middle-depth topics" },
+  { id: "deep", label: "Deep", hint: "Dense, research-heavy topics" },
+];
+
+// Best-effort content filter — not exhaustive, but screens out
+// obvious explicit or graphic material before it reaches the board.
+const BLOCKED_TERMS = [
+  "pornograph", "explicit sexual", "sexual intercourse", "hardcore sex",
+  "genitalia", "rape", "sexual assault", "child abuse", "torture",
+  "mutilat", "gore", "snuff film", "necrophilia", "bestiality",
+  "gruesome execution", "decapitation",
+];
+
+function containsBlockedContent(text) {
+  const lower = (text || "").toLowerCase();
+  return BLOCKED_TERMS.some((term) => lower.includes(term));
+}
+
+function getDifficultyBand(extractText) {
+  const len = (extractText || "").length;
+  if (len < 500) return "surface";
+  if (len < 1200) return "current";
+  return "deep";
+}
+
+function capitalize(str) {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function wikiTitleToSlug(title) {
+  return encodeURIComponent(title.replace(/ /g, "_"));
+}
+
+async function wikiFetchJson(url, timeoutMs = 6000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) throw new Error("wiki request failed");
+    return await res.json();
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+async function fetchWikiRandomSummary() {
+  return wikiFetchJson(`${WIKI_REST}/page/random/summary`);
+}
+
+async function fetchWikiSummaryByTitle(title) {
+  return wikiFetchJson(`${WIKI_REST}/page/summary/${wikiTitleToSlug(title)}`);
+}
+
+async function fetchWikiCategoryTitles(categories) {
+  const wikiCats = [...new Set(categories.flatMap((c) => CATEGORY_WIKI_MAP[c] || []))];
+  if (!wikiCats.length) return [];
+  const expr =
+    wikiCats.length === 1
+      ? `deepcategory:"${wikiCats[0]}"`
+      : `(${wikiCats.map((c) => `deepcategory:"${c}"`).join(" OR ")})`;
+  const url = `${WIKI_ACTION}?action=query&list=search&format=json&origin=*&srnamespace=0&srlimit=50&srsearch=${encodeURIComponent(expr)}`;
+  const data = await wikiFetchJson(url);
+  return (data && data.query && data.query.search ? data.query.search : []).map((r) => r.title);
+}
+
+function summaryToTopic(summary, fallbackCategory) {
+  if (!summary || summary.type === "disambiguation" || !summary.extract) return null;
+  const combined = `${summary.title} ${summary.description || ""} ${summary.extract}`;
+  if (containsBlockedContent(combined)) return null;
+  const extract = summary.extract.trim();
+  return {
+    t: summary.title,
+    c: summary.description ? capitalize(summary.description) : fallbackCategory,
+    s: extract.length > 240 ? extract.slice(0, 237).trim() + "…" : extract,
+    url: summary.content_urls && summary.content_urls.desktop ? summary.content_urls.desktop.page : null,
+    difficulty: getDifficultyBand(extract),
+  };
+}
+
+async function fetchAtlasTopic(categories, difficulty) {
+  const maxAttempts = 6;
+  let candidateTitles = [];
+  if (categories.length) {
+    candidateTitles = await fetchWikiCategoryTitles(categories);
+    if (!candidateTitles.length) throw new Error("no category matches on the atlas");
+  }
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    let summary = null;
+    if (candidateTitles.length) {
+      const title = candidateTitles[Math.floor(Math.random() * candidateTitles.length)];
+      summary = await fetchWikiSummaryByTitle(title).catch(() => null);
+    } else {
+      summary = await fetchWikiRandomSummary().catch(() => null);
+    }
+    if (!summary) continue;
+    const topic = summaryToTopic(summary, categories[0] || "ATLAS");
+    if (!topic) continue;
+    if (difficulty && topic.difficulty !== difficulty) continue;
+    return topic;
+  }
+  throw new Error("no matching atlas topic found");
+}
+
+/* ---------------------------------------------------------------
    THEME TOKENS
 --------------------------------------------------------------- */
 const THEMES = {
@@ -214,58 +347,21 @@ function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-async function fetchWireTopic(categories) {
-  const scope =
-    categories.length && categories.length < CATEGORIES.length
-      ? `Stay within these categories: ${categories.join(", ")}.`
-      : "Draw from any field: science, psychology, history, philosophy, space, technology, nature, mathematics, economics, culture, mythology, sports, linguistics, or design.";
-
-  const prompt = `Generate one intriguing, presentation-worthy research topic for someone who will spend time researching it and then give a short presentation to others.
-
-${scope}
-
-Rules:
-- The topic must be genuinely interesting, specific (not generic), and suitable for a general audience presentation.
-- Absolutely no sexual content and no graphic, violent, or gory content.
-- Respond with ONLY raw JSON, no markdown fences, no preamble, in exactly this shape:
-{"t":"the topic, as a short title","c":"one short category label","s":"one sentence, phrased as a curiosity-sparking question, that hints at why this topic is worth digging into"}`;
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: 300,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-
-  if (!response.ok) throw new Error("wire request failed");
-  const data = await response.json();
-  const raw = (data.content || [])
-    .map((b) => b.text || "")
-    .join("")
-    .trim();
-  const cleaned = raw.replace(/^```json\s*|^```\s*|```$/g, "").trim();
-  const parsed = JSON.parse(cleaned);
-  if (!parsed.t || !parsed.c || !parsed.s) throw new Error("malformed wire topic");
-  return parsed;
-}
-
 /* ---------------------------------------------------------------
    MAIN APP
 --------------------------------------------------------------- */
 export default function App() {
   const [theme, setTheme] = useState("dark");
-  const [source, setSource] = useState("archive"); // 'archive' | 'wire'
+  const [source, setSource] = useState("archive"); // 'archive' | 'atlas'
   const [activeCats, setActiveCats] = useState([]); // empty = all
+  const [difficulty, setDifficulty] = useState(null); // null = any
   const [isDrawing, setIsDrawing] = useState(false);
   const [displayTopic, setDisplayTopic] = useState("PRESS DRAW TO BEGIN");
   const [displayCat, setDisplayCat] = useState("READY");
   const [finalTopic, setFinalTopic] = useState(null);
   const [animKey, setAnimKey] = useState(0);
   const [shortlist, setShortlist] = useState([]);
-  const [wireNote, setWireNote] = useState("");
+  const [atlasNote, setAtlasNote] = useState("");
   const [copied, setCopied] = useState(false);
   const cancelRef = useRef(false);
 
@@ -287,6 +383,10 @@ export default function App() {
     setActiveCats((prev) =>
       prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
     );
+  }
+
+  function toggleDifficulty(id) {
+    setDifficulty((prev) => (prev === id ? null : id));
   }
 
   function runCycle(pool) {
@@ -317,20 +417,20 @@ export default function App() {
     if (isDrawing) return;
     setIsDrawing(true);
     setFinalTopic(null);
-    setWireNote("");
+    setAtlasNote("");
     setCopied(false);
 
     const pool = filteredPool();
-    const wirePromise =
-      source === "wire" ? fetchWireTopic(activeCats).catch(() => null) : null;
+    const atlasPromise =
+      source === "atlas" ? fetchAtlasTopic(activeCats, difficulty).catch(() => null) : null;
 
     await runCycle(pool);
 
     let chosen = null;
-    if (source === "wire") {
-      chosen = await wirePromise;
+    if (source === "atlas") {
+      chosen = await atlasPromise;
       if (!chosen) {
-        setWireNote("The wire went quiet — pulled from the archive instead.");
+        setAtlasNote("The atlas didn't turn up a match — pulled from the archive instead.");
         chosen = pickRandom(pool);
       }
     } else {
@@ -353,7 +453,9 @@ export default function App() {
 
   function handleCopy() {
     if (!finalTopic) return;
-    const text = `${finalTopic.t}\n\n${finalTopic.s}`;
+    const text = finalTopic.url
+      ? `${finalTopic.t}\n\n${finalTopic.s}\n\n${finalTopic.url}`
+      : `${finalTopic.t}\n\n${finalTopic.s}`;
     if (navigator.clipboard) {
       navigator.clipboard.writeText(text).then(() => {
         setCopied(true);
@@ -570,6 +672,43 @@ export default function App() {
           outline-offset: 2px;
         }
 
+        .tg-diff-section {
+          margin-top: 1.6rem;
+          transition: opacity .3s ease;
+        }
+        .tg-diff-section.muted { opacity: 0.5; }
+        .tg-diff-label {
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 0.66rem;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: var(--text-muted);
+          margin-bottom: 0.55rem;
+        }
+        .tg-diff-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+        .tg-diff-chip {
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 0.66rem;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          padding: 0.42rem 0.8rem;
+          border-radius: 999px;
+          border: 1px solid var(--border);
+          background: transparent;
+          color: var(--text-muted);
+          cursor: pointer;
+          transition: all .25s ease;
+        }
+        .tg-diff-chip.active {
+          border-color: var(--accent2);
+          color: var(--text);
+          background: color-mix(in srgb, var(--accent2) 16%, transparent);
+        }
+
         .tg-draw-row { margin-top: 2rem; display: flex; justify-content: center; }
         .tg-draw {
           font-family: 'IBM Plex Mono', monospace;
@@ -606,6 +745,18 @@ export default function App() {
           line-height: 1.55;
           color: var(--text);
         }
+        .tg-result-tag {
+          display: inline-block;
+          margin-top: 0.7rem;
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 0.62rem;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          padding: 0.25rem 0.6rem;
+          border-radius: 999px;
+          border: 1px solid var(--border);
+          color: var(--accent2);
+        }
         .tg-result-actions {
           margin-top: 1.1rem;
           display: flex;
@@ -624,6 +775,8 @@ export default function App() {
           color: var(--text);
           cursor: pointer;
           transition: border-color .25s ease, color .25s ease;
+          text-decoration: none;
+          display: inline-block;
         }
         .tg-action:hover { border-color: var(--accent); }
 
@@ -716,10 +869,10 @@ export default function App() {
               Archive
             </button>
             <button
-              className={source === "wire" ? "active" : ""}
-              onClick={() => setSource("wire")}
+              className={source === "atlas" ? "active" : ""}
+              onClick={() => setSource("atlas")}
             >
-              Wire
+              Atlas
             </button>
           </div>
           <span
@@ -746,17 +899,40 @@ export default function App() {
           ))}
         </div>
 
+        <div className={`tg-diff-section ${source !== "atlas" ? "muted" : ""}`}>
+          <div className="tg-diff-label">
+            Research depth {source !== "atlas" ? "· used in Atlas mode" : ""}
+          </div>
+          <div className="tg-diff-row">
+            {DIFFICULTIES.map((d) => (
+              <button
+                key={d.id}
+                className={`tg-diff-chip ${difficulty === d.id ? "active" : ""}`}
+                onClick={() => toggleDifficulty(d.id)}
+                title={d.hint}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="tg-draw-row">
           <button className="tg-draw" onClick={handleDraw} disabled={isDrawing}>
             {isDrawing ? "Drawing…" : "Draw a Topic"}
           </button>
         </div>
 
-        {wireNote && <div className="tg-note">{wireNote}</div>}
+        {atlasNote && <div className="tg-note">{atlasNote}</div>}
 
         {finalTopic && !isDrawing && (
           <div className="tg-result">
             <div className="tg-result-spark">{finalTopic.s}</div>
+            {finalTopic.difficulty && (
+              <span className="tg-result-tag">
+                {capitalize(finalTopic.difficulty)}
+              </span>
+            )}
             <div className="tg-result-actions">
               <button className="tg-action" onClick={handleDraw}>
                 Draw Again
@@ -767,6 +943,16 @@ export default function App() {
               <button className="tg-action" onClick={handleCopy}>
                 {copied ? "Copied ✓" : "Copy Topic"}
               </button>
+              {finalTopic.url && (
+                <a
+                  className="tg-action"
+                  href={finalTopic.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View on Wikipedia ↗
+                </a>
+              )}
             </div>
           </div>
         )}
@@ -792,7 +978,9 @@ export default function App() {
         <div className="tg-footer">
           Archive mode draws from 140+ curated topics across science, history, psychology, and more.
           <br />
-          Wire mode asks AI to generate a fresh topic on the spot, filtered to stay presentation-appropriate.
+          Atlas mode pulls live topics from Wikipedia, narrowed by your category and depth filters.
+          <br />
+          Content filtering is best-effort — always sanity-check a topic before presenting it.
         </div>
       </div>
     </div>
