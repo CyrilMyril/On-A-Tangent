@@ -5,162 +5,7 @@ import { TOPICS_1000 } from "./topic_list";
    TOPIC LIBRARY — 140 curated topics across 14 categories
 --------------------------------------------------------------- */
 const TOPICS = [...TOPICS_1000];
-
 const CATEGORIES = [...new Set(TOPICS.map((x) => x.c))];
-
-/* ---------------------------------------------------------------
-   ATLAS (WIKIPEDIA) INTEGRATION
-   Uses Wikipedia's public REST + Action APIs directly from the
-   browser. No key needed, CORS-enabled, works from any host.
---------------------------------------------------------------- */
-const WIKI_REST = "https://en.wikipedia.org/api/rest_v1";
-const WIKI_ACTION = "https://en.wikipedia.org/w/api.php";
-
-// Maps our own category labels to real Wikipedia category names
-const CATEGORY_WIKI_MAP = {
-  "Science": ["Science"],
-  "Psychology": ["Psychology"],
-  "History": ["History"],
-  "Philosophy": ["Philosophy"],
-  "Space": ["Astronomy", "Space exploration"],
-  "Technology": ["Technology"],
-  "Nature": ["Nature", "Ecology"],
-  "Mathematics": ["Mathematics"],
-  "Economics": ["Economics"],
-  "Culture & Arts": ["The arts", "Culture"],
-  "Mythology & Folklore": ["Mythology", "Folklore"],
-  "Sports": ["Sports"],
-  "Linguistics": ["Linguistics"],
-  "Design & Architecture": ["Architecture", "Design"],
-};
-
-const DIFFICULTIES = [
-  { id: "surface", label: "Surface", hint: "Quick, approachable topics" },
-  { id: "current", label: "Current", hint: "Solid middle-depth topics" },
-  { id: "deep", label: "Deep", hint: "Dense, research-heavy topics" },
-];
-
-// Best-effort content filter — not exhaustive, but screens out
-// obvious explicit or graphic material before it reaches the board.
-const BLOCKED_TERMS = [
-  "pornograph", "explicit sexual", "sexual intercourse", "hardcore sex",
-  "genitalia", "rape", "sexual assault", "child abuse", "torture",
-  "mutilat", "gore", "snuff film", "necrophilia", "bestiality",
-  "gruesome execution", "decapitation",
-];
-
-const LOW_VALUE_PATTERNS = [
-  "is a species of",
-  "is a genus of",
-  "is a moth",
-  "is a beetle",
-  "is a village in",
-  "is a municipality in",
-  "is a census-designated place",
-  "is a small town in",
-];
-
-function containsBlockedContent(text) {
-  const lower = (text || "").toLowerCase();
-  return BLOCKED_TERMS.some((term) => lower.includes(term));
-}
-
-function isLowValueTopic(text) {
-  const lower = (text || "").toLowerCase();
-  return LOW_VALUE_PATTERNS.some((term) => lower.includes(term));
-}
-
-function getDifficultyBand(extractText) {
-  const len = (extractText || "").length;
-  if (len < 500) return "surface";
-  if (len < 1200) return "current";
-  return "deep";
-}
-
-function capitalize(str) {
-  if (!str) return str;
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-function wikiTitleToSlug(title) {
-  return encodeURIComponent(title.replace(/ /g, "_"));
-}
-
-async function wikiFetchJson(url, timeoutMs = 6000) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) throw new Error("wiki request failed");
-    return await res.json();
-  } finally {
-    clearTimeout(id);
-  }
-}
-
-async function fetchWikiRandomSummary() {
-  return wikiFetchJson(`${WIKI_REST}/page/random/summary`);
-}
-
-async function fetchWikiSummaryByTitle(title) {
-  return wikiFetchJson(`${WIKI_REST}/page/summary/${wikiTitleToSlug(title)}`);
-}
-
-const EXCLUDED_WIKI_CATEGORIES = [
-  "Towns",
-  "Species",
-  "Year of birth missing",
-  "Year of birth uncertain",
-];
-
-async function fetchWikiCategoryTitles(categories) {
-  const wikiCats = [...new Set(categories.flatMap((c) => CATEGORY_WIKI_MAP[c] || []))];
-  if (!wikiCats.length) return [];
-  const include = wikiCats.length === 1
-    ? `deepcategory:"${wikiCats[0]}"`
-    : `(${wikiCats.map((c) => `deepcategory:"${c}"`).join(" OR ")})`;
-  const exclude = EXCLUDED_WIKI_CATEGORIES.map((c) => `-deepcategory:"${c}"`).join(" ");
-  const expr = `${include} ${exclude}`;
-  const url = `${WIKI_ACTION}?action=query&list=search&format=json&origin=*&srnamespace=0&srlimit=50&srsearch=${encodeURIComponent(expr)}`;
-  const data = await wikiFetchJson(url);
-  return (data && data.query && data.query.search ? data.query.search : []).map((r) => r.title);
-}
-
-const MIN_EXTRACT_LENGTH = 200;
-
-function summaryToTopic(summary, fallbackCategory) {
-  if (!summary || summary.type === "disambiguation" || !summary.extract) return null;
-  const combined = `${summary.title} ${summary.description || ""} ${summary.extract}`;
-  if (containsBlockedContent(combined)) return null;
-  const extract = summary.extract.trim();
-  if (extract.length < MIN_EXTRACT_LENGTH) return null;
-  if (isLowValueTopic(combined)) return null;
-}
-
-async function fetchAtlasTopic(categories, difficulty) {
-  const maxAttempts = 10;
-  let candidateTitles = [];
-  if (categories.length) {
-    candidateTitles = await fetchWikiCategoryTitles(categories);
-    if (!candidateTitles.length) throw new Error("no category matches on the atlas");
-  }
-
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    let summary = null;
-    if (candidateTitles.length) {
-      const title = candidateTitles[Math.floor(Math.random() * candidateTitles.length)];
-      summary = await fetchWikiSummaryByTitle(title).catch(() => null);
-    } else {
-      summary = await fetchWikiRandomSummary().catch(() => null);
-    }
-    if (!summary) continue;
-    const topic = summaryToTopic(summary, categories[0] || "ATLAS");
-    if (!topic) continue;
-    if (difficulty && topic.difficulty !== difficulty) continue;
-    return topic;
-  }
-  throw new Error("no matching atlas topic found");
-}
 
 /* ---------------------------------------------------------------
    THEME TOKENS
@@ -206,16 +51,13 @@ function pickRandom(arr) {
 --------------------------------------------------------------- */
 export default function App() {
   const [theme, setTheme] = useState("dark");
-  const [source, setSource] = useState("archive"); // 'archive' | 'atlas'
   const [activeCats, setActiveCats] = useState([]); // empty = all
-  const [difficulty, setDifficulty] = useState(null); // null = any
   const [isDrawing, setIsDrawing] = useState(false);
   const [displayTopic, setDisplayTopic] = useState("PRESS DRAW TO BEGIN");
   const [displayCat, setDisplayCat] = useState("READY");
   const [finalTopic, setFinalTopic] = useState(null);
   const [animKey, setAnimKey] = useState(0);
   const [shortlist, setShortlist] = useState([]);
-  const [atlasNote, setAtlasNote] = useState("");
   const [copied, setCopied] = useState(false);
   const cancelRef = useRef(false);
 
@@ -237,10 +79,6 @@ export default function App() {
     setActiveCats((prev) =>
       prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
     );
-  }
-
-  function toggleDifficulty(id) {
-    setDifficulty((prev) => (prev === id ? null : id));
   }
 
   function runCycle(pool) {
@@ -271,26 +109,10 @@ export default function App() {
     if (isDrawing) return;
     setIsDrawing(true);
     setFinalTopic(null);
-    setAtlasNote("");
     setCopied(false);
-
     const pool = filteredPool();
-    const atlasPromise =
-      source === "atlas" ? fetchAtlasTopic(activeCats, difficulty).catch(() => null) : null;
-
     await runCycle(pool);
-
-    let chosen = null;
-    if (source === "atlas") {
-      chosen = await atlasPromise;
-      if (!chosen) {
-        setAtlasNote("The atlas didn't turn up a match — pulled from the archive instead.");
-        chosen = pickRandom(pool);
-      }
-    } else {
-      chosen = pickRandom(pool);
-    }
-
+    const chosen = pickRandom(pool);
     setDisplayTopic(chosen.t);
     setDisplayCat(chosen.c);
     setAnimKey((k) => k + 1);
@@ -472,31 +294,6 @@ export default function App() {
           justify-content: space-between;
         }
 
-        .tg-source {
-          display: inline-flex;
-          background: var(--panel-alt);
-          border: 1px solid var(--border);
-          border-radius: 999px;
-          padding: 3px;
-        }
-        .tg-source button {
-          font-family: 'IBM Plex Mono', monospace;
-          font-size: 0.7rem;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-          border: none;
-          background: transparent;
-          color: var(--text-muted);
-          padding: 0.5rem 0.9rem;
-          border-radius: 999px;
-          cursor: pointer;
-          transition: background-color .3s ease, color .3s ease;
-        }
-        .tg-source button.active {
-          background: var(--accent);
-          color: var(--accent-text);
-        }
-
         .tg-cats {
           display: flex;
           flex-wrap: wrap;
@@ -524,43 +321,6 @@ export default function App() {
         .tg-chip:focus-visible, .tg-toggle:focus-visible, button:focus-visible {
           outline: 2px solid var(--accent2);
           outline-offset: 2px;
-        }
-
-        .tg-diff-section {
-          margin-top: 1.6rem;
-          transition: opacity .3s ease;
-        }
-        .tg-diff-section.muted { opacity: 0.5; }
-        .tg-diff-label {
-          font-family: 'IBM Plex Mono', monospace;
-          font-size: 0.66rem;
-          letter-spacing: 0.18em;
-          text-transform: uppercase;
-          color: var(--text-muted);
-          margin-bottom: 0.55rem;
-        }
-        .tg-diff-row {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.5rem;
-        }
-        .tg-diff-chip {
-          font-family: 'IBM Plex Mono', monospace;
-          font-size: 0.66rem;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          padding: 0.42rem 0.8rem;
-          border-radius: 999px;
-          border: 1px solid var(--border);
-          background: transparent;
-          color: var(--text-muted);
-          cursor: pointer;
-          transition: all .25s ease;
-        }
-        .tg-diff-chip.active {
-          border-color: var(--accent2);
-          color: var(--text);
-          background: color-mix(in srgb, var(--accent2) 16%, transparent);
         }
 
         .tg-draw-row { margin-top: 2rem; display: flex; justify-content: center; }
@@ -688,7 +448,6 @@ export default function App() {
         @media (max-width: 480px) {
           .tg-board { padding: 1.9rem 1.2rem; }
           .tg-controls { flex-direction: column; align-items: stretch; }
-          .tg-source { align-self: flex-start; }
         }
       `}</style>
 
@@ -715,20 +474,6 @@ export default function App() {
         </div>
 
         <div className="tg-controls">
-          <div className="tg-source">
-            <button
-              className={source === "archive" ? "active" : ""}
-              onClick={() => setSource("archive")}
-            >
-              Archive
-            </button>
-            <button
-              className={source === "atlas" ? "active" : ""}
-              onClick={() => setSource("atlas")}
-            >
-              Atlas
-            </button>
-          </div>
           <span
             style={{
               fontFamily: "'IBM Plex Mono', monospace",
@@ -753,31 +498,11 @@ export default function App() {
           ))}
         </div>
 
-        <div className={`tg-diff-section ${source !== "atlas" ? "muted" : ""}`}>
-          <div className="tg-diff-label">
-            Research depth {source !== "atlas" ? "· used in Atlas mode" : ""}
-          </div>
-          <div className="tg-diff-row">
-            {DIFFICULTIES.map((d) => (
-              <button
-                key={d.id}
-                className={`tg-diff-chip ${difficulty === d.id ? "active" : ""}`}
-                onClick={() => toggleDifficulty(d.id)}
-                title={d.hint}
-              >
-                {d.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
         <div className="tg-draw-row">
           <button className="tg-draw" onClick={handleDraw} disabled={isDrawing}>
             {isDrawing ? "Drawing…" : "Draw a Topic"}
           </button>
         </div>
-
-        {atlasNote && <div className="tg-note">{atlasNote}</div>}
 
         {finalTopic && !isDrawing && (
           <div className="tg-result">
@@ -830,11 +555,9 @@ export default function App() {
         )}
 
         <div className="tg-footer">
-          Archive mode draws from 140+ curated topics across science, history, psychology, and more.
+          Tangent draws from 1000+ curated topics across science, history, psychology, and more.
           <br />
-          Atlas mode pulls live topics from Wikipedia, narrowed by your category and depth filters.
-          <br />
-          Content filtering is best-effort — always sanity-check a topic before presenting it.
+          All topics are family-friendly and suitable for general audiences.
         </div>
       </div>
     </div>
