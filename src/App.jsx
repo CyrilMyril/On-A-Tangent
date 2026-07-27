@@ -305,6 +305,7 @@ function summaryToTopic(summary, fallbackCategory) {
   const extract = summary.extract.trim();
   if (extract.length < MIN_EXTRACT_LENGTH) return null;
   if (isLowValueTopic(combined)) return null;
+}
 
 async function fetchAtlasTopic(categories, difficulty) {
   const maxAttempts = 10;
