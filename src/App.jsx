@@ -219,11 +219,12 @@ const BLOCKED_TERMS = [
 const LOW_VALUE_PATTERNS = [
   "is a species of",
   "is a genus of",
-  "is an american",
-  "is a politician",
-  "footballer",
+  "is a moth",
+  "is a beetle",
   "is a village in",
   "is a municipality in",
+  "is a census-designated place",
+  "is a small town in",
 ];
 
 function containsBlockedContent(text) {
@@ -273,14 +274,10 @@ async function fetchWikiSummaryByTitle(title) {
 }
 
 const EXCLUDED_WIKI_CATEGORIES = [
-  "Living people",
+  "Towns",
   "Species",
-  "Extinct species",
   "Year of birth missing",
   "Year of birth uncertain",
-  "1990s births",
-  "1980s births",
-  "2000s births",
 ];
 
 async function fetchWikiCategoryTitles(categories) {
@@ -296,7 +293,7 @@ async function fetchWikiCategoryTitles(categories) {
   return (data && data.query && data.query.search ? data.query.search : []).map((r) => r.title);
 }
 
-const MIN_EXTRACT_LENGTH = 400;
+const MIN_EXTRACT_LENGTH = 200;
 
 function summaryToTopic(summary, fallbackCategory) {
   if (!summary || summary.type === "disambiguation" || !summary.extract) return null;
