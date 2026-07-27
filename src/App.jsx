@@ -216,9 +216,24 @@ const BLOCKED_TERMS = [
   "gruesome execution", "decapitation",
 ];
 
+const LOW_VALUE_PATTERNS = [
+  "is a species of",
+  "is a genus of",
+  "is an american",
+  "is a politician",
+  "footballer",
+  "is a village in",
+  "is a municipality in",
+];
+
 function containsBlockedContent(text) {
   const lower = (text || "").toLowerCase();
   return BLOCKED_TERMS.some((term) => lower.includes(term));
+}
+
+function isLowValueTopic(text) {
+  const lower = (text || "").toLowerCase();
+  return LOW_VALUE_PATTERNS.some((term) => lower.includes(term));
 }
 
 function getDifficultyBand(extractText) {
@@ -257,34 +272,42 @@ async function fetchWikiSummaryByTitle(title) {
   return wikiFetchJson(`${WIKI_REST}/page/summary/${wikiTitleToSlug(title)}`);
 }
 
+const EXCLUDED_WIKI_CATEGORIES = [
+  "Living people",
+  "Species",
+  "Extinct species",
+  "Year of birth missing",
+  "Year of birth uncertain",
+  "1990s births",
+  "1980s births",
+  "2000s births",
+];
+
 async function fetchWikiCategoryTitles(categories) {
   const wikiCats = [...new Set(categories.flatMap((c) => CATEGORY_WIKI_MAP[c] || []))];
   if (!wikiCats.length) return [];
-  const expr =
-    wikiCats.length === 1
-      ? `deepcategory:"${wikiCats[0]}"`
-      : `(${wikiCats.map((c) => `deepcategory:"${c}"`).join(" OR ")})`;
+  const include = wikiCats.length === 1
+    ? `deepcategory:"${wikiCats[0]}"`
+    : `(${wikiCats.map((c) => `deepcategory:"${c}"`).join(" OR ")})`;
+  const exclude = EXCLUDED_WIKI_CATEGORIES.map((c) => `-deepcategory:"${c}"`).join(" ");
+  const expr = `${include} ${exclude}`;
   const url = `${WIKI_ACTION}?action=query&list=search&format=json&origin=*&srnamespace=0&srlimit=50&srsearch=${encodeURIComponent(expr)}`;
   const data = await wikiFetchJson(url);
   return (data && data.query && data.query.search ? data.query.search : []).map((r) => r.title);
 }
+
+const MIN_EXTRACT_LENGTH = 400;
 
 function summaryToTopic(summary, fallbackCategory) {
   if (!summary || summary.type === "disambiguation" || !summary.extract) return null;
   const combined = `${summary.title} ${summary.description || ""} ${summary.extract}`;
   if (containsBlockedContent(combined)) return null;
   const extract = summary.extract.trim();
-  return {
-    t: summary.title,
-    c: summary.description ? capitalize(summary.description) : fallbackCategory,
-    s: extract.length > 240 ? extract.slice(0, 237).trim() + "…" : extract,
-    url: summary.content_urls && summary.content_urls.desktop ? summary.content_urls.desktop.page : null,
-    difficulty: getDifficultyBand(extract),
-  };
-}
+  if (extract.length < MIN_EXTRACT_LENGTH) return null;
+  if (isLowValueTopic(combined)) return null;
 
 async function fetchAtlasTopic(categories, difficulty) {
-  const maxAttempts = 6;
+  const maxAttempts = 10;
   let candidateTitles = [];
   if (categories.length) {
     candidateTitles = await fetchWikiCategoryTitles(categories);
