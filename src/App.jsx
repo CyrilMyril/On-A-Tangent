@@ -454,7 +454,7 @@ export default function App() {
       <div className="tg-shell">
         <div className="tg-topbar">
           <div className="tg-logo">
-            TANGENT
+            ON A TANGENT
             <span className="tg-logo-sub">a topic terminal</span>
           </div>
           <button
@@ -555,7 +555,7 @@ export default function App() {
         )}
 
         <div className="tg-footer">
-          Tangent draws from 1000+ curated topics across science, history, psychology, and more.
+          ON A TANGENT draws from 1000+ curated topics across science, history, psychology, and more.
           <br />
           All topics are family-friendly and suitable for general audiences.
         </div>
