@@ -189,13 +189,30 @@ export default function App() {
         }
 
         .tg-logo {
-          font-family: 'IBM Plex Mono', monospace;
-          font-weight: 600;
-          font-size: 1.05rem;
-          letter-spacing: 0.28em;
+          display: flex;
+          align-items: center;
+          gap: 0.85rem;
+          min-height: 54px;
+        }
+        .tg-logo img {
+          width: 56px;
+          height: 56px;
+          object-fit: contain;
+          border-radius: 14px;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.16);
+        }
+        .tg-logo-text {
           display: flex;
           flex-direction: column;
           gap: 0.15rem;
+        }
+        .tg-logo-title {
+          font-family: 'IBM Plex Mono', monospace;
+          font-weight: 600;
+          font-size: 0.96rem;
+          letter-spacing: 0.24em;
+          text-transform: uppercase;
+          color: var(--text);
         }
         .tg-logo-sub {
           font-size: 0.6rem;
@@ -449,8 +466,11 @@ export default function App() {
       <div className="tg-shell">
         <div className="tg-topbar">
           <div className="tg-logo">
-            ON A TANGENT
-            <span className="tg-logo-sub">a topic terminal</span>
+            <img src="/logo.png" alt="On a Tangent logo" />
+            <div className="tg-logo-text">
+              <span className="tg-logo-title">On a Tangent</span>
+              <span className="tg-logo-sub">a topic terminal</span>
+            </div>
           </div>
           <button
             className={`tg-toggle ${theme === "light" ? "is-light" : ""}`}
