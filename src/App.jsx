@@ -619,7 +619,7 @@ export default function App() {
           </div>
           <a
             className="tg-support-link"
-            href="https://www.buymeacoffee.com/yourname"
+            href="https://www.buymeacoffee.com/cyrilmyril"
             target="_blank"
             rel="noopener noreferrer"
           >
