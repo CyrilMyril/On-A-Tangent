@@ -1,4 +1,4 @@
-# Tangent
+# On A Tangent
 
 A little topic generator for when you want to think about something other than your to-do list.
 
