@@ -173,33 +173,31 @@ export default function App() {
           color: var(--text);
           font-family: 'Space Grotesk', system-ui, sans-serif;
           transition: background-color .5s ease, color .5s ease;
-          padding: 2.5rem 1.25rem 4rem;
+          padding: 1.5rem 1.25rem 2rem;
           display: flex;
           flex-direction: column;
           align-items: center;
         }
 
-        .tg-shell { width: 100%; max-width: 720px; }
+        .tg-shell { width: 100%; max-width: 850px; }
 
         .tg-topbar {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 2.75rem;
+          margin-bottom: 1.75rem;
         }
 
         .tg-logo {
           display: flex;
           align-items: center;
-          gap: 0.85rem;
+          gap: 0rem;
           min-height: 54px;
         }
         .tg-logo img {
-          width: 56px;
-          height: 56px;
+          width: 120px;
+          height: 80px;
           object-fit: contain;
-          border-radius: 14px;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.16);
         }
         .tg-logo-text {
           display: flex;
@@ -209,13 +207,13 @@ export default function App() {
         .tg-logo-title {
           font-family: 'IBM Plex Mono', monospace;
           font-weight: 600;
-          font-size: 0.96rem;
+          font-size: 1.25rem;
           letter-spacing: 0.24em;
           text-transform: uppercase;
           color: var(--text);
         }
         .tg-logo-sub {
-          font-size: 0.6rem;
+          font-size: 0.8rem;
           letter-spacing: 0.2em;
           color: var(--text-muted);
           font-weight: 400;
@@ -509,11 +507,11 @@ export default function App() {
       <div className="tg-shell">
         <div className="tg-topbar">
           <div className="tg-logo">
-            <img src="/logo.svg" alt="On a Tangent logo" />
             <div className="tg-logo-text">
               <span className="tg-logo-title">On a Tangent</span>
               <span className="tg-logo-sub">a topic terminal</span>
             </div>
+            <img src="/logo.png" alt="On a Tangent logo" />
           </div>
           <button
             className={`tg-toggle ${theme === "light" ? "is-light" : ""}`}
