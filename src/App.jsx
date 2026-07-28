@@ -236,41 +236,36 @@ export default function App() {
           background: var(--panel);
           border: 1px solid var(--border);
           border-radius: 16px;
-          padding: 2.4rem 1.75rem;
+          padding: 38px 1.75rem;
           position: relative;
           overflow: hidden;
           box-shadow: 0 24px 60px rgba(0,0,0,0.22);
-          background-image: repeating-linear-gradient(
-            to bottom,
-            transparent 0,
-            transparent 37px,
-            var(--border) 37px,
-            var(--border) 38px
-          );
+          background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 37px, var(--border) 37px, var(--border) 38px);
           transition: background-color .5s ease, border-color .5s ease;
           min-height: 190px;
           display: flex;
           flex-direction: column;
-          justify-content: center;
-          gap: 0.9rem;
+          justify-content: flex-start;
+          gap: 0;
         }
 
         .tg-board-cat {
-          font-family: 'IBM Plex Mono', monospace;
+          font-family: "IBM Plex Mono", monospace;
           font-size: 0.72rem;
           letter-spacing: 0.22em;
           text-transform: uppercase;
           color: var(--accent2);
           transition: color .4s ease;
+          line-height: 38px;
         }
 
         .tg-board-topic {
-          font-family: 'IBM Plex Mono', monospace;
+          font-family: "IBM Plex Mono", monospace;
           font-weight: 600;
-          line-height: 1.28;
+          line-height: 38px;
           text-transform: uppercase;
           letter-spacing: 0.01em;
-          font-size: clamp(1.15rem, 4.4vw, 1.85rem);
+          font-size: clamp(1.15rem, 4.4vw, 1.7rem);
           transform-origin: top center;
         }
 
