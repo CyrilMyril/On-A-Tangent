@@ -447,6 +447,49 @@ export default function App() {
         }
         .tg-shortlist-remove:hover { color: var(--danger); }
 
+        .tg-support {
+          margin-top: 2rem;
+          padding: 1.1rem 1.2rem;
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, var(--panel)) 0%, var(--panel-alt) 100%);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+        }
+        .tg-support-title {
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 0.68rem;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: var(--accent2);
+          margin-bottom: 0.4rem;
+        }
+        .tg-support-copy {
+          font-size: 0.95rem;
+          line-height: 1.6;
+          color: var(--text);
+          margin-bottom: 0.8rem;
+        }
+        .tg-support-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.45rem;
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 0.72rem;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          padding: 0.6rem 0.9rem;
+          border-radius: 999px;
+          border: 1px solid var(--border);
+          background: var(--panel);
+          color: var(--text);
+          text-decoration: none;
+          transition: border-color .25s ease, transform .2s ease;
+        }
+        .tg-support-link:hover {
+          border-color: var(--accent);
+          transform: translateY(-1px);
+        }
+
         .tg-footer {
           margin-top: 2.75rem;
           text-align: center;
@@ -466,7 +509,7 @@ export default function App() {
       <div className="tg-shell">
         <div className="tg-topbar">
           <div className="tg-logo">
-            <img src="/logo.png" alt="On a Tangent logo" />
+            <img src="/logo.svg" alt="On a Tangent logo" />
             <div className="tg-logo-text">
               <span className="tg-logo-title">On a Tangent</span>
               <span className="tg-logo-sub">a topic terminal</span>
@@ -568,6 +611,21 @@ export default function App() {
             ))}
           </div>
         )}
+
+        <div className="tg-support">
+          <div className="tg-support-title">Support this project</div>
+          <div className="tg-support-copy">
+            If you enjoy the app, drop a coffee my way and help keep the ideas flowing.
+          </div>
+          <a
+            className="tg-support-link"
+            href="https://www.buymeacoffee.com/cyrilmyril"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            ☕ Buy me a coffee
+          </a>
+        </div>
 
         <div className="tg-footer">
           ON A TANGENT draws from 1000+ curated topics across science, history, psychology, and more.
