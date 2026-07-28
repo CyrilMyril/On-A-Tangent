@@ -19,7 +19,7 @@ Sometimes you just want something worth looking into. Not "what's the capital of
 ## Running it locally
 
 ```bash
-git clone https://github.com/CyrilMyril/tangent.git
+git clone https://github.com/CyrilMyril/On-A-Tangent.git
 cd tangent
 npm install
 npm run dev
